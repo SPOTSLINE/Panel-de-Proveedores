@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script src="/Paneldepaneles/candado.js" data-panel="proveedores"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Panel de Pagos a Proveedores · SPL / Spotsline</title>
@@ -1605,26 +1606,17 @@ function refreshUsuariosProvList(){
   usuariosProvList=usuariosProvAll.filter(u=>u.activo).map(u=>({nombre:u.nombre,usuario:u.usuario}));
 }
 
+// Login único (Panel de Paneles): el usuario y su rol vienen del portal, sin clave propia.
+function aliasDe(u){return ((u.config&&u.config.usuario)||String(u.email||'').split('@')[0]||u.nombre||'').trim();}
+function rolDe(u){return u.es_admin?'admin':((u.config&&u.config.rol)==='admin'?'admin':'usuario');}
 function initAuth(){
-  fetch(SUPABASE_URL+'/rest/v1/usuarios_proveedores?select=*',{headers:SUPABASE_HEADERS})
-    .then(r=>r.json())
-    .then(rows=>{
-      usuariosProvAll=Array.isArray(rows)?rows:[];
+  Promise.all([window.PORTAL_ACCESO, window.PORTAL.usuarios()])
+    .then(([yo,lista])=>{
+      usuariosProvAll=(Array.isArray(lista)?lista:[]).map(u=>({id:u.user_id,nombre:u.nombre,usuario:aliasDe(u),rol:rolDe(u),activo:true}));
       refreshUsuariosProvList();
       document.getElementById('login-loading').style.display='none';
-      const saved=localStorage.getItem('panel_prov_session');
-      if(saved){
-        try{
-          const s=JSON.parse(saved);
-          const match=usuariosProvAll.find(u=>u.usuario===s.usuario&&u.activo);
-          if(match){currentUser={nombre:match.nombre,usuario:match.usuario,rol:match.rol};enterApp();return;}
-        }catch(e){}
-      }
-      if(!usuariosProvAll.length){
-        document.getElementById('login-bootstrap').style.display='block';
-      }else{
-        document.getElementById('login-normal').style.display='block';
-      }
+      currentUser={nombre:yo.nombre,usuario:aliasDe(yo),rol:rolDe(yo)};
+      enterApp();
     })
     .catch(e=>{
       document.getElementById('login-loading').textContent='Error de conexión. Recargá la página.';
@@ -1649,7 +1641,7 @@ function applyRolePermissions(){
   const isAdmin=currentUser.rol==='admin';
   document.getElementById('btn-upload-trigger').style.display=isAdmin?'inline-flex':'none';
   document.getElementById('btn-export').style.display=isAdmin?'inline-flex':'none';
-  document.getElementById('btn-usuarios').style.display=isAdmin?'inline-flex':'none';
+  document.getElementById('btn-usuarios').style.display='none'; // los usuarios se manejan en el Panel de Paneles
 }
 
 document.getElementById('li-submit').addEventListener('click',async()=>{
@@ -1687,7 +1679,7 @@ document.getElementById('bs-submit').addEventListener('click',async()=>{
 
 document.getElementById('btn-logout').addEventListener('click',()=>{
   localStorage.removeItem('panel_prov_session');
-  location.reload();
+  window.PORTAL.salir();
 });
 
 // --- GESTIÓN DE USUARIOS (admin) ---
